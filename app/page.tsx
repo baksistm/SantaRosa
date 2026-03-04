@@ -4,16 +4,17 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/Logo';
 import { useAppStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
 import { LogIn, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { users, setCurrentUser, currentUser } = useAppStore();
+  const { setCurrentUser, currentUser } = useAppStore();
 
   useEffect(() => {
     if (currentUser) {
@@ -21,23 +22,67 @@ export default function LoginPage() {
     }
   }, [currentUser, router]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Simulate network delay
-    setTimeout(() => {
-      const user = users.find(u => u.username === username && u.password === password);
-      
-      if (user) {
-        setCurrentUser(user);
-        router.push('/dashboard');
-      } else {
-        setError('Usuário ou senha incorretos');
-      }
+    // Master Login Bypass (Less secure, as requested)
+    if (email.toLowerCase() === 'brunoalekohler@gmail.com' && password === 'Bak33542772.') {
+      setCurrentUser({
+        id: 'master-admin',
+        username: 'bruno',
+        name: 'Bruno Kohler',
+        role: 'Administrador',
+      });
+      router.push('/dashboard');
       setIsLoading(false);
-    }, 800);
+      return;
+    }
+
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      if (data.user) {
+        const userEmail = data.user.email?.toLowerCase();
+        const isOwner = userEmail === 'brunoalekohler@gmail.com';
+
+        // Fetch profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || !profile) {
+          // If profile doesn't exist yet, we might need to create it or just use auth data
+          setCurrentUser({
+            id: data.user.id,
+            username: data.user.email?.split('@')[0] || 'user',
+            name: data.user.user_metadata?.name || data.user.email || 'Usuário',
+            role: isOwner ? 'Administrador' : ((data.user.user_metadata?.role as any) || 'Jovem aprendiz'),
+          });
+        } else {
+          setCurrentUser({
+            id: profile.id,
+            username: profile.username,
+            name: profile.name,
+            role: isOwner ? 'Administrador' : profile.role,
+          });
+        }
+        
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro ao entrar no sistema');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -69,15 +114,15 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">Usuário</label>
+              <label className="text-sm font-semibold text-slate-700 ml-1">E-mail</label>
               <div className="relative">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#046393] focus:border-transparent transition-all"
-                  placeholder="Seu usuário"
+                  placeholder="Seu e-mail"
                   required
                 />
               </div>

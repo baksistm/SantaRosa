@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase-service';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -19,9 +21,36 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function AtividadesPage() {
-  const { currentUser, atividades, addAtividade, updateAtividade, deleteAtividade } = useAppStore();
+  const { currentUser, atividades, setAtividades } = useAppStore();
   const [activeTab, setActiveTab] = useState<'lista' | 'novo'>('lista');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch activities on mount
+  useEffect(() => {
+    const fetchAtividades = async () => {
+      try {
+        const data = await supabaseService.getAtividades();
+        setAtividades(data);
+      } catch (error) {
+        console.error('Error fetching activities:', error);
+      }
+    };
+
+    fetchAtividades();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('atividades_changes')
+      .on('postgres_changes', { event: '*', table: 'atividades' }, () => {
+        fetchAtividades();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [setAtividades]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -31,23 +60,38 @@ export default function AtividadesPage() {
     periodo: 'Sem período' as any
   });
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
-    if (editingId) {
-      updateAtividade(editingId, formData);
-      setEditingId(null);
-    } else {
-      addAtividade({
-        id: Math.random().toString(36).substr(2, 9),
-        ...formData,
-        concluida: false,
-        createdAt: new Date().toISOString()
-      });
-    }
+    try {
+      if (editingId) {
+        const { error } = await supabase
+          .from('atividades')
+          .update(formData)
+          .eq('id', editingId);
+        
+        if (error) throw error;
+        setEditingId(null);
+      } else {
+        const { error } = await supabase
+          .from('atividades')
+          .insert([{
+            ...formData,
+            concluida: false
+          }]);
+        
+        if (error) throw error;
+      }
 
-    setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
-    setActiveTab('lista');
+      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
+      setActiveTab('lista');
+    } catch (error) {
+      console.error('Error saving activity:', error);
+      alert('Erro ao salvar atividade');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEdit = (atividade: any) => {
@@ -61,8 +105,34 @@ export default function AtividadesPage() {
     setActiveTab('novo');
   };
 
-  const toggleStatus = (id: string, currentStatus: boolean) => {
-    updateAtividade(id, { concluida: !currentStatus });
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta atividade?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('atividades')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      alert('Erro ao excluir atividade');
+    }
+  };
+
+  const toggleStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('atividades')
+        .update({ concluida: !currentStatus })
+        .eq('id', id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      alert('Erro ao atualizar status');
+    }
   };
 
   const canManage = currentUser?.role === 'Administrador' || currentUser?.role === 'Supervisor';
@@ -217,7 +287,7 @@ export default function AtividadesPage() {
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            onClick={() => deleteAtividade(atv.id)}
+                            onClick={() => handleDelete(atv.id)}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                           >
                             <Trash2 size={16} />

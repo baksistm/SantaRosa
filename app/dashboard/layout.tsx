@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Logo } from '@/components/Logo';
 import { useAppStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
@@ -31,10 +32,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Set initial state based on window width
-    if (window.innerWidth >= 1024) {
-      setIsSidebarOpen(true);
-    }
+    // Set initial state and handle resize
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(true);
+      } else {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -46,13 +55,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     // Close sidebar on route change on mobile
     if (window.innerWidth < 1024) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSidebarOpen(false);
     }
   }, [pathname]);
 
   if (!currentUser) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     logout();
     router.push('/');
   };

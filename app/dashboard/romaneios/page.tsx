@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase-service';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -24,7 +26,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function RomaneiosPage() {
-  const { currentUser, romaneios, addRomaneio, updateRomaneio, deleteRomaneio } = useAppStore();
+  const { currentUser, romaneios, setRomaneios } = useAppStore();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'lista' | 'novo' | 'verificacao'>(
@@ -33,6 +35,33 @@ export default function RomaneiosPage() {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch romaneios on mount
+  useEffect(() => {
+    const fetchRomaneios = async () => {
+      try {
+        const data = await supabaseService.getRomaneios();
+        setRomaneios(data);
+      } catch (error) {
+        console.error('Error fetching romaneios:', error);
+      }
+    };
+
+    fetchRomaneios();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel('romaneios_changes')
+      .on('postgres_changes', { event: '*', table: 'romaneios' }, () => {
+        fetchRomaneios();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [setRomaneios]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -71,42 +100,96 @@ export default function RomaneiosPage() {
     return list;
   }, [romaneios, searchTerm, activeTab]);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
-    if (editingId) {
-      updateRomaneio(editingId, {
-        ...formData,
-        numeroRomaneio: formData.numeroRomaneio
-      });
-      setEditingId(null);
-    } else {
-      const status = formData.saldo < umPorCento ? 'Cadastrado' : 'Pendente';
-      
-      addRomaneio({
-        id: Math.random().toString(36).substr(2, 9),
-        ...formData,
-        status,
-        createdAt: new Date().toISOString(),
-        createdBy: currentUser?.name || 'Sistema'
-      });
-    }
+    try {
+      if (editingId) {
+        const { error } = await supabase
+          .from('romaneios')
+          .update({
+            cliente: formData.cliente,
+            cliente_filial: formData.clienteFilial,
+            nf: formData.nf,
+            entrada: formData.entrada,
+            saldo: formData.saldo,
+            numero_romaneio: formData.numeroRomaneio
+          })
+          .eq('id', editingId);
+        
+        if (error) throw error;
+        setEditingId(null);
+      } else {
+        const status = formData.saldo < umPorCento ? 'Cadastrado' : 'Pendente';
+        
+        const { error } = await supabase
+          .from('romaneios')
+          .insert([{
+            cliente: formData.cliente,
+            cliente_filial: formData.clienteFilial,
+            nf: formData.nf,
+            entrada: formData.entrada,
+            saldo: formData.saldo,
+            numero_romaneio: formData.numeroRomaneio,
+            status,
+            created_by: currentUser?.id
+          }]);
+        
+        if (error) throw error;
+      }
 
-    setFormData({ cliente: '', clienteFilial: '', nf: '', entrada: 0, saldo: 0, numeroRomaneio: '' });
-    setActiveTab('lista');
+      setFormData({ cliente: '', clienteFilial: '', nf: '', entrada: 0, saldo: 0, numeroRomaneio: '' });
+      setActiveTab('lista');
+    } catch (error) {
+      console.error('Error saving romaneio:', error);
+      alert('Erro ao salvar romaneio');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEdit = (romaneio: any) => {
     setFormData({
       cliente: romaneio.cliente,
-      clienteFilial: romaneio.clienteFilial,
+      clienteFilial: romaneio.cliente_filial || romaneio.clienteFilial,
       nf: romaneio.nf,
       entrada: romaneio.entrada,
       saldo: romaneio.saldo,
-      numeroRomaneio: romaneio.numeroRomaneio || ''
+      numeroRomaneio: romaneio.numero_romaneio || romaneio.numeroRomaneio || ''
     });
     setEditingId(romaneio.id);
     setActiveTab('novo');
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este romaneio?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('romaneios')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting romaneio:', error);
+      alert('Erro ao excluir romaneio');
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, status: string) => {
+    try {
+      const { error } = await supabase
+        .from('romaneios')
+        .update({ status })
+        .eq('id', id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Erro ao atualizar status');
+    }
   };
 
   const generatePDF = () => {
@@ -347,10 +430,10 @@ export default function RomaneiosPage() {
                     ) : (
                       filteredRomaneios.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="p-4 font-mono text-sm font-bold text-[#046393]">{r.numeroRomaneio || '-'}</td>
+                          <td className="p-4 font-mono text-sm font-bold text-[#046393]">{r.numero_romaneio || r.numeroRomaneio || '-'}</td>
                           <td className="p-4">
                             <p className="text-sm font-bold text-slate-700">{r.cliente}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">{r.clienteFilial}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">{r.cliente_filial || r.clienteFilial}</p>
                           </td>
                           <td className="p-4 text-sm font-medium text-slate-600">{r.nf}</td>
                           <td className="p-4 text-sm font-bold text-slate-700">R$ {r.entrada.toFixed(2)}</td>
@@ -373,14 +456,14 @@ export default function RomaneiosPage() {
                               {activeTab === 'verificacao' ? (
                                 <>
                                   <button 
-                                    onClick={() => updateRomaneio(r.id, { status: 'Aprovado' })}
+                                    onClick={() => handleUpdateStatus(r.id, 'Aprovado')}
                                     className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
                                     title="Aprovar"
                                   >
                                     <CheckCircle size={18} />
                                   </button>
                                   <button 
-                                    onClick={() => updateRomaneio(r.id, { status: 'Recusado' })}
+                                    onClick={() => handleUpdateStatus(r.id, 'Recusado')}
                                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                     title="Recusar"
                                   >
@@ -396,7 +479,7 @@ export default function RomaneiosPage() {
                                     <Edit2 size={18} />
                                   </button>
                                   <button 
-                                    onClick={() => deleteRomaneio(r.id)}
+                                    onClick={() => handleDelete(r.id)}
                                     className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                   >
                                     <Trash2 size={18} />

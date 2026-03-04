@@ -29,12 +29,7 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       currentUser: null,
-      users: [
-        { id: '1', username: 'admin', name: 'Administrador', role: 'Administrador', password: '123' },
-        { id: '2', username: 'supervisor', name: 'Supervisor', role: 'Supervisor', password: '123' },
-        { id: '3', username: 'jovem', name: 'Jovem Aprendiz', role: 'Jovem aprendiz', password: '123' },
-        { id: '4', username: 'Bruno', name: 'Bruno', role: 'Administrador', password: 'BAK' },
-      ],
+      users: [],
       romaneios: [],
       atividades: [],
       

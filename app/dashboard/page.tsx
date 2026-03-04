@@ -1,6 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAppStore } from '@/lib/store';
+import { supabaseService } from '@/lib/supabase-service';
+import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
 import { 
   FileText, 
@@ -16,7 +19,44 @@ import Link from 'next/link';
 import { Clock } from '@/components/Clock';
 
 export default function DashboardPage() {
-  const { currentUser, romaneios, atividades } = useAppStore();
+  const { currentUser, romaneios, atividades, setRomaneios, setAtividades } = useAppStore();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [romaneiosData, atividadesData] = await Promise.all([
+          supabaseService.getRomaneios(),
+          supabaseService.getAtividades()
+        ]);
+        setRomaneios(romaneiosData);
+        setAtividades(atividadesData);
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      }
+    };
+
+    fetchData();
+
+    // Subscribe to changes
+    const romaneiosChannel = supabase
+      .channel('dashboard_romaneios')
+      .on('postgres_changes', { event: '*', table: 'romaneios' }, () => {
+        supabaseService.getRomaneios().then(setRomaneios);
+      })
+      .subscribe();
+
+    const atividadesChannel = supabase
+      .channel('dashboard_atividades')
+      .on('postgres_changes', { event: '*', table: 'atividades' }, () => {
+        supabaseService.getAtividades().then(setAtividades);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(romaneiosChannel);
+      supabase.removeChannel(atividadesChannel);
+    };
+  }, [setRomaneios, setAtividades]);
 
   if (!currentUser) return null;
 
