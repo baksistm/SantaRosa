@@ -31,6 +31,7 @@ export interface Atividade {
   link?: string;
   periodo: 'Até o final do dia' | 'Até o fim da semana' | 'Até amanhã no fim do dia' | 'Sem período';
   concluida: boolean;
+  assigned_to?: string; // ID do usuário (Jovem aprendiz)
   createdAt: string;
 }
 

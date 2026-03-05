@@ -29,7 +29,14 @@ export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
       currentUser: null,
-      users: [],
+      users: [
+        {
+          id: 'master-admin',
+          username: 'bruno',
+          name: 'Bruno Kohler',
+          role: 'Administrador',
+        }
+      ],
       romaneios: [],
       atividades: [],
       

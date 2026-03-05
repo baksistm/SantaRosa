@@ -15,35 +15,36 @@ import {
   Link as LinkIcon, 
   FileText,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  User as UserIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export default function AtividadesPage() {
-  const { currentUser, atividades, setAtividades } = useAppStore();
+  const { currentUser, atividades, setAtividades, users, setUsers } = useAppStore();
   const [activeTab, setActiveTab] = useState<'lista' | 'novo'>('lista');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch activities on mount
   useEffect(() => {
-    const fetchAtividades = async () => {
+    const fetchData = async () => {
       try {
-        const data = await supabaseService.getAtividades();
-        setAtividades(data);
+        const atividadesData = await supabaseService.getAtividades();
+        setAtividades(atividadesData);
       } catch (error) {
-        console.error('Error fetching activities:', error);
+        console.error('Error fetching data:', error);
       }
     };
 
-    fetchAtividades();
+    fetchData();
 
     // Subscribe to changes
     const channel = supabase
       .channel('atividades_changes')
       .on('postgres_changes', { event: '*', table: 'atividades' }, () => {
-        fetchAtividades();
+        supabaseService.getAtividades().then(setAtividades);
       })
       .subscribe();
 
@@ -52,12 +53,18 @@ export default function AtividadesPage() {
     };
   }, [setAtividades]);
 
+  // Filter Jovens for assignment
+  const jovens = useMemo(() => {
+    return users.filter(u => u.role === 'Jovem aprendiz');
+  }, [users]);
+
   // Form State
   const [formData, setFormData] = useState({
     titulo: '',
     descricao: '',
     link: '',
-    periodo: 'Sem período' as any
+    periodo: 'Sem período' as any,
+    assigned_to: ''
   });
 
   const handleSave = async (e: React.FormEvent) => {
@@ -65,10 +72,15 @@ export default function AtividadesPage() {
     setIsLoading(true);
     
     try {
+      const payload = {
+        ...formData,
+        assigned_to: formData.assigned_to || null
+      };
+
       if (editingId) {
         const { error } = await supabase
           .from('atividades')
-          .update(formData)
+          .update(payload)
           .eq('id', editingId);
         
         if (error) throw error;
@@ -77,14 +89,14 @@ export default function AtividadesPage() {
         const { error } = await supabase
           .from('atividades')
           .insert([{
-            ...formData,
+            ...payload,
             concluida: false
           }]);
         
         if (error) throw error;
       }
 
-      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
+      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
       setActiveTab('lista');
     } catch (error) {
       console.error('Error saving activity:', error);
@@ -99,7 +111,8 @@ export default function AtividadesPage() {
       titulo: atividade.titulo,
       descricao: atividade.descricao,
       link: atividade.link || '',
-      periodo: atividade.periodo
+      periodo: atividade.periodo,
+      assigned_to: atividade.assigned_to || ''
     });
     setEditingId(atividade.id);
     setActiveTab('novo');
@@ -181,7 +194,7 @@ export default function AtividadesPage() {
                 {editingId ? 'Editar Atividade' : 'Cadastrar Nova Atividade'}
               </h2>
               <form onSubmit={handleSave} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Título da Atividade</label>
                     <input
@@ -192,6 +205,19 @@ export default function AtividadesPage() {
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
                       placeholder="Ex: Organização de arquivos"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Responsável (Jovem Aprendiz)</label>
+                    <select
+                      value={formData.assigned_to}
+                      onChange={e => setFormData({...formData, assigned_to: e.target.value})}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
+                    >
+                      <option value="">Selecione um jovem...</option>
+                      {jovens.map(jovem => (
+                        <option key={jovem.id} value={jovem.id}>{jovem.username}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Período para Entrega</label>
@@ -258,7 +284,7 @@ export default function AtividadesPage() {
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {atividades.length === 0 ? (
+            {atividades.filter(atv => currentUser?.role !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id).length === 0 ? (
               <div className="col-span-full bg-white p-12 rounded-3xl border border-slate-100 text-center">
                 <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
                   <CheckSquare size={40} />
@@ -267,12 +293,14 @@ export default function AtividadesPage() {
                 <p className="text-slate-400">As atividades cadastradas aparecerão aqui.</p>
               </div>
             ) : (
-              atividades.map((atv) => (
-                <motion.div
-                  layout
-                  key={atv.id}
-                  className={`bg-white rounded-3xl border p-6 shadow-sm transition-all flex flex-col ${atv.concluida ? 'border-emerald-100 opacity-75' : 'border-slate-100'}`}
-                >
+              atividades
+                .filter(atv => currentUser?.role !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id)
+                .map((atv) => (
+                  <motion.div
+                    layout
+                    key={atv.id}
+                    className={`bg-white rounded-3xl border p-6 shadow-sm transition-all flex flex-col ${atv.concluida ? 'border-emerald-100 opacity-75' : 'border-slate-100'}`}
+                  >
                   <div className="flex items-start justify-between mb-4">
                     <div className={`p-3 rounded-2xl ${atv.concluida ? 'bg-emerald-50 text-emerald-500' : 'bg-blue-50 text-[#046393]'}`}>
                       <CheckSquare size={24} />
@@ -305,9 +333,17 @@ export default function AtividadesPage() {
                   </p>
 
                   <div className="space-y-3 pt-4 border-t border-slate-50">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      <Clock size={14} />
-                      {atv.periodo}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <Clock size={14} />
+                        {atv.periodo}
+                      </div>
+                      {atv.assigned_to && (
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#046393] uppercase tracking-wider">
+                          <UserIcon size={14} />
+                          {users.find(u => u.id === atv.assigned_to)?.username || 'Usuário não encontrado'}
+                        </div>
+                      )}
                     </div>
                     {atv.link && (
                       <a 

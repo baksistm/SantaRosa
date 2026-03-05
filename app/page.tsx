@@ -6,6 +6,7 @@ import { Logo } from '@/components/Logo';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
+import Link from 'next/link';
 import { LogIn, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -14,7 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { setCurrentUser, currentUser } = useAppStore();
+  const { setCurrentUser, currentUser, users, addUser } = useAppStore();
 
   useEffect(() => {
     if (currentUser) {
@@ -26,19 +27,6 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-
-    // Master Login Bypass (Less secure, as requested)
-    if (email.toLowerCase() === 'brunoalekohler@gmail.com' && password === 'Bak33542772.') {
-      setCurrentUser({
-        id: 'master-admin',
-        username: 'bruno',
-        name: 'Bruno Kohler',
-        role: 'Administrador',
-      });
-      router.push('/dashboard');
-      setIsLoading(false);
-      return;
-    }
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -52,30 +40,26 @@ export default function LoginPage() {
         const userEmail = data.user.email?.toLowerCase();
         const isOwner = userEmail === 'brunoalekohler@gmail.com';
 
-        // Fetch profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
+        // Check if user exists in our local store
+        let localUser = users.find(u => u.id === data.user.id);
 
-        if (profileError || !profile) {
-          // If profile doesn't exist yet, we might need to create it or just use auth data
-          setCurrentUser({
+        if (!localUser) {
+          // If not in store, create a default entry
+          localUser = {
             id: data.user.id,
             username: data.user.email?.split('@')[0] || 'user',
             name: data.user.user_metadata?.name || data.user.email || 'Usuário',
-            role: isOwner ? 'Administrador' : ((data.user.user_metadata?.role as any) || 'Jovem aprendiz'),
-          });
-        } else {
-          setCurrentUser({
-            id: profile.id,
-            username: profile.username,
-            name: profile.name,
-            role: isOwner ? 'Administrador' : profile.role,
-          });
+            role: isOwner ? 'Administrador' : 'Jovem aprendiz',
+          };
+          addUser(localUser);
         }
-        
+
+        // Always ensure owner is Admin
+        if (isOwner && localUser.role !== 'Administrador') {
+          localUser.role = 'Administrador';
+        }
+
+        setCurrentUser(localUser);
         router.push('/dashboard');
       }
     } catch (err: any) {
@@ -160,8 +144,8 @@ export default function LoginPage() {
           </form>
         </div>
         
-        <div className="bg-slate-50 p-4 text-center border-t border-slate-100">
-          <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
+        <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
             Sistema de Gestão Interna
           </p>
         </div>

@@ -16,12 +16,13 @@ import {
   Check,
   X,
   AlertCircle,
-  Mail
+  Mail,
+  ArrowRight
 } from 'lucide-react';
 import { UserRole } from '@/lib/types';
 
 export default function ConfiguracoesPage() {
-  const { currentUser, users, setUsers } = useAppStore();
+  const { currentUser, users, updateUser, deleteUser } = useAppStore();
   const [activeTab, setActiveTab] = useState<'usuarios' | 'acessos'>('usuarios');
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,31 +37,7 @@ export default function ConfiguracoesPage() {
     role: 'Jovem aprendiz' as UserRole
   });
 
-  // Fetch users on mount
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const data = await supabaseService.getProfiles();
-        setUsers(data);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-      }
-    };
-
-    fetchUsers();
-
-    // Subscribe to changes
-    const channel = supabase
-      .channel('profiles_changes')
-      .on('postgres_changes', { event: '*', table: 'profiles' }, () => {
-        fetchUsers();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [setUsers]);
+  // No more database fetching - using Zustand store directly
 
   if (currentUser?.role !== 'Administrador') {
     return (
@@ -80,24 +57,21 @@ export default function ConfiguracoesPage() {
     setError('');
 
     try {
-      const endpoint = '/api/admin/users';
-      const method = editingId ? 'PUT' : 'POST';
-      const body = editingId 
-        ? { userId: editingId, ...formData }
-        : formData;
-
-      const response = await fetch(endpoint, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao processar usuário');
+      if (!editingId) {
+        setError('Para criar novos usuários, use o link de cadastro na tela inicial.');
+        setIsLoading(false);
+        return;
       }
 
+      // Update directly in the Zustand store (localStorage)
+      updateUser({
+        id: editingId,
+        name: formData.name,
+        username: formData.username,
+        role: formData.role
+      });
+
+      alert('Alterações salvas com sucesso!');
       setFormData({ name: '', username: '', email: '', password: '', role: 'Jovem aprendiz' });
       setIsAdding(false);
       setEditingId(null);
@@ -112,8 +86,8 @@ export default function ConfiguracoesPage() {
     setFormData({
       name: user.name,
       username: user.username,
-      email: user.email || '', // Note: email might not be in profile, but we need it for Auth updates if we had it
-      password: '', // Don't show password
+      email: '', // Email not available in public profile
+      password: '', 
       role: user.role
     });
     setEditingId(user.id);
@@ -121,26 +95,11 @@ export default function ConfiguracoesPage() {
   };
 
   const handleDelete = async (userId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
-    setIsLoading(true);
-
-    try {
-      const response = await fetch('/api/admin/users', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao excluir usuário');
-      }
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    if (!confirm('Tem certeza que deseja excluir o perfil deste usuário?')) return;
+    
+    // Delete directly from Zustand store
+    deleteUser(userId);
+    alert('Usuário removido com sucesso!');
   };
 
   return (
@@ -197,88 +156,109 @@ export default function ConfiguracoesPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="bg-white p-6 rounded-3xl border border-slate-100 shadow-md"
               >
-                <form onSubmit={handleSave} className="space-y-4">
-                  {error && (
-                    <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-center gap-2 text-sm">
-                      <AlertCircle size={18} />
-                      {error}
+                <div className="mb-6 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-800">
+                    {editingId ? 'Editar Perfil do Usuário' : 'Novo Usuário'}
+                  </h3>
+                  {!editingId && (
+                    <div className="px-3 py-1 bg-[#046393]/10 text-[#046393] text-[10px] font-bold rounded-full uppercase">
+                      Informação
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.name}
-                        onChange={e => setFormData({...formData, name: e.target.value})}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
-                      />
+                </div>
+
+                {!editingId ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
+                      <AlertCircle className="text-[#046393] flex-shrink-0" size={20} />
+                      <div>
+                        <p className="text-sm font-bold text-[#046393]">Como cadastrar novos usuários?</p>
+                        <p className="text-xs text-slate-600 mt-1">
+                          Para manter a segurança, novos usuários devem ser cadastrados diretamente no painel de controle do Supabase. 
+                          Clique no botão abaixo para abrir o painel em uma nova aba.
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">Usuário (Login)</label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.username}
-                        onChange={e => setFormData({...formData, username: e.target.value})}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">E-mail</label>
-                      <input
-                        type="email"
-                        required={!editingId}
-                        disabled={!!editingId}
-                        value={formData.email}
-                        onChange={e => setFormData({...formData, email: e.target.value})}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393] disabled:opacity-50"
-                        placeholder="exemplo@email.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">Senha {editingId && '(Deixe vazio para não alterar)'}</label>
-                      <input
-                        type="password"
-                        required={!editingId}
-                        value={formData.password}
-                        onChange={e => setFormData({...formData, password: e.target.value})}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-slate-400 uppercase">Cargo</label>
-                      <select
-                        value={formData.role}
-                        onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
-                      >
-                        <option>Administrador</option>
-                        <option>Supervisor</option>
-                        <option>Jovem aprendiz</option>
-                      </select>
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
+                    <div className="flex justify-end gap-3">
                       <button 
-                        type="button"
-                        disabled={isLoading}
                         onClick={() => setIsAdding(false)}
-                        className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg disabled:opacity-50"
+                        className="px-6 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
                       >
                         Cancelar
                       </button>
-                      <button 
-                        type="submit"
-                        disabled={isLoading}
-                        className="px-6 py-2 bg-[#046393] text-white font-bold rounded-lg shadow-lg shadow-blue-900/20 disabled:opacity-50 flex items-center gap-2"
+                      <a 
+                        href="https://supabase.com/dashboard/project/pujqkyfjtaqhlcrgixcw/auth/users"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-2 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all flex items-center gap-2"
                       >
-                        {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                        {editingId ? 'Salvar Alterações' : 'Criar Usuário'}
-                      </button>
+                        Ir para o Supabase
+                        <ArrowRight size={16} />
+                      </a>
                     </div>
                   </div>
-                </form>
+                ) : (
+                  <form onSubmit={handleSave} className="space-y-4">
+                    {error && (
+                      <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-center gap-2 text-sm">
+                        <AlertCircle size={18} />
+                        {error}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.name}
+                          onChange={e => setFormData({...formData, name: e.target.value})}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase">Usuário (Login)</label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.username}
+                          onChange={e => setFormData({...formData, username: e.target.value})}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase">Cargo</label>
+                        <select
+                          value={formData.role}
+                          onChange={e => setFormData({...formData, role: e.target.value as UserRole})}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#046393]"
+                        >
+                          <option>Administrador</option>
+                          <option>Supervisor</option>
+                          <option>Jovem aprendiz</option>
+                        </select>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button 
+                          type="button"
+                          disabled={isLoading}
+                          onClick={() => setIsAdding(false)}
+                          className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-lg disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button 
+                          type="submit"
+                          disabled={isLoading}
+                          className="px-6 py-2 bg-[#046393] text-white font-bold rounded-lg shadow-lg shadow-blue-900/20 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                          Salvar Alterações
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
               </motion.div>
             )}
 
