@@ -39,7 +39,7 @@ export default function ConfiguracoesPage() {
 
   // No more database fetching - using Zustand store directly
 
-  if (currentUser?.role !== 'Administrador') {
+  if (currentUser?.role?.trim() !== 'Administrador') {
     return (
       <div className="flex flex-col items-center justify-center py-20">
         <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6">
@@ -70,6 +70,16 @@ export default function ConfiguracoesPage() {
         username: formData.username,
         role: formData.role
       });
+
+      // Also update in Supabase if possible (using 'function' column)
+      await supabase
+        .from('profiles')
+        .update({ 
+          name: formData.name, 
+          username: formData.username, 
+          function: formData.role 
+        })
+        .eq('id', editingId);
 
       alert('Alterações salvas com sucesso!');
       setFormData({ name: '', username: '', email: '', password: '', role: 'Jovem aprendiz' });

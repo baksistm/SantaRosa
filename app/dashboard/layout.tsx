@@ -68,6 +68,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  const userRole = currentUser?.role?.trim();
   const menuItems = [
     { 
       name: 'Home', 
@@ -93,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: Settings,
       roles: ['Administrador']
     },
-  ].filter(item => item.roles.includes(currentUser.role));
+  ].filter(item => userRole && item.roles.includes(userRole));
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -122,7 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Logo Section */}
           <div className="p-6 flex items-center justify-between border-b border-slate-100">
             <div className="flex items-center gap-3 overflow-hidden">
-              <Logo size={40} />
+              <Logo size={40} variant="white" />
               {isSidebarOpen && (
                 <div className="overflow-hidden whitespace-nowrap">
                   <h1 className="font-bold text-slate-800 text-sm leading-tight">Santa Rosa</h1>
@@ -203,7 +204,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="lg:hidden">
-              <Logo size={32} />
+              <Logo size={32} variant="white" />
             </div>
           </div>
           

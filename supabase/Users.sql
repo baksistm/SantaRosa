@@ -9,7 +9,7 @@ create table if not exists public.profiles (
   updated_at timestamp with time zone default now(),
   username text unique,
   name text,
-  role text check (role in ('Administrador', 'Supervisor', 'Jovem aprendiz')) default 'Jovem aprendiz'
+  function text check (function in ('Administrador', 'Supervisor', 'Jovem aprendiz')) default 'Jovem aprendiz'
 );
 
 -- 2. Habilitar RLS
@@ -22,7 +22,7 @@ returns boolean as $$
 begin
   return exists (
     select 1 from public.profiles
-    where id = auth.uid() and role = 'Administrador'
+    where id = auth.uid() and function = 'Administrador'
   );
 end;
 $$ language plpgsql security definer;
@@ -50,12 +50,12 @@ create policy "Admin gerencia tudo" on profiles
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, name, username, role)
+  insert into public.profiles (id, name, username, function)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'name', 'Usuário'),
     coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
-    case when new.email = 'brunoalekohler@gmail.com' then 'Administrador' else 'Jovem aprendiz' end
+    coalesce(new.raw_user_meta_data->>'role', case when new.email = 'brunoalekohler@gmail.com' then 'Administrador' else 'Jovem aprendiz' end)
   );
   return new;
 end;
@@ -68,11 +68,11 @@ create trigger on_auth_user_created
 
 -- 7. FORÇAR O SEU PERFIL COMO ADMINISTRADOR AGORA
 -- Substitua o ID se necessário, mas o e-mail é o garantido
-insert into public.profiles (id, name, username, role)
+insert into public.profiles (id, name, username, function)
 select id, 'Bruno Kohler', 'bruno', 'Administrador'
 from auth.users where email = 'brunoalekohler@gmail.com'
 on conflict (id) do update 
-set role = 'Administrador', 
+set function = 'Administrador', 
     name = 'Bruno Kohler', 
     username = 'bruno';
 

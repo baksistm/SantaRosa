@@ -141,6 +141,10 @@ export default function RomaneiosPage() {
 
       setFormData({ cliente: '', clienteFilial: '', nf: '', entrada: 0, saldo: 0, numeroRomaneio: '' });
       setActiveTab('lista');
+      
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getRomaneios();
+      setRomaneios(data);
     } catch (error) {
       console.error('Error saving romaneio:', error);
       alert('Erro ao salvar romaneio');
@@ -192,18 +196,34 @@ export default function RomaneiosPage() {
     }
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const doc = new jsPDF();
     
     // Header
     doc.setFillColor(4, 99, 147);
     doc.rect(0, 0, 210, 40, 'F');
     
+    // Add Logo to PDF
+    try {
+      const logoUrl = '/logo.png';
+      const img = new Image();
+      img.src = logoUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+        img.onerror = resolve; // Continue even if logo fails
+      });
+      if (img.complete && img.naturalWidth > 0) {
+        doc.addImage(img, 'PNG', 15, 8, 24, 24);
+      }
+    } catch (e) {
+      console.error('Error adding logo to PDF:', e);
+    }
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text('Santa Rosa Malhas | Filial 3', 15, 20);
+    doc.text('Santa Rosa Malhas | Filial 3', 45, 20);
     doc.setFontSize(10);
-    doc.text('CNPJ: 81.326.084/0003-11', 15, 30);
+    doc.text('CNPJ: 81.326.084/0003-11', 45, 30);
     
     // User Info
     doc.setTextColor(100, 100, 100);
@@ -216,6 +236,7 @@ export default function RomaneiosPage() {
     const tableData = filteredRomaneios.map(r => [
       r.numeroRomaneio || '-',
       r.cliente,
+      r.clienteFilial || '-',
       r.nf,
       `R$ ${r.entrada.toFixed(2)}`,
       `R$ ${r.saldo.toFixed(2)}`,
@@ -224,7 +245,7 @@ export default function RomaneiosPage() {
 
     autoTable(doc, {
       startY: 65,
-      head: [['Nº Romaneio', 'Cliente', 'NF', 'Entrada', 'Saldo', 'Status']],
+      head: [['Nº Romaneio', 'Cliente', 'Filial', 'NF', 'Entrada', 'Saldo', 'Status']],
       body: tableData,
       headStyles: { fillColor: [4, 99, 147] },
       alternateRowStyles: { fillColor: [245, 247, 250] },
@@ -247,7 +268,7 @@ export default function RomaneiosPage() {
           >
             Cadastrados
           </button>
-          {(currentUser?.role === 'Administrador' || currentUser?.role === 'Supervisor') && (
+          {(currentUser?.role?.trim() === 'Administrador' || currentUser?.role?.trim() === 'Supervisor') && (
             <button 
               onClick={() => setActiveTab('verificacao')}
               className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'verificacao' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
@@ -410,6 +431,7 @@ export default function RomaneiosPage() {
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Nº Romaneio</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Cliente</th>
+                      <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Filial</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">NF</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Entrada</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Saldo</th>
@@ -420,7 +442,7 @@ export default function RomaneiosPage() {
                   <tbody className="divide-y divide-slate-50">
                     {filteredRomaneios.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-12 text-center">
+                        <td colSpan={8} className="p-12 text-center">
                           <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
                             <FileText size={32} />
                           </div>
@@ -430,10 +452,12 @@ export default function RomaneiosPage() {
                     ) : (
                       filteredRomaneios.map((r) => (
                         <tr key={r.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="p-4 font-mono text-sm font-bold text-[#046393]">{r.numero_romaneio || r.numeroRomaneio || '-'}</td>
+                          <td className="p-4 font-mono text-sm font-bold text-[#046393]">{r.numeroRomaneio || '-'}</td>
                           <td className="p-4">
                             <p className="text-sm font-bold text-slate-700">{r.cliente}</p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase">{r.cliente_filial || r.clienteFilial}</p>
+                          </td>
+                          <td className="p-4">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">{r.clienteFilial || '-'}</p>
                           </td>
                           <td className="p-4 text-sm font-medium text-slate-600">{r.nf}</td>
                           <td className="p-4 text-sm font-bold text-slate-700">R$ {r.entrada.toFixed(2)}</td>

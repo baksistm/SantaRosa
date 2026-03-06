@@ -9,8 +9,6 @@ export function AuthSync() {
 
   async function syncUser(userId: string) {
     const { data: { user } } = await supabase.auth.getUser();
-    const userEmail = user?.email?.toLowerCase();
-    const isOwner = userEmail === 'brunoalekohler@gmail.com';
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -19,19 +17,21 @@ export function AuthSync() {
       .single();
 
     if (profile) {
+      const dbRole = (profile.function?.trim() || 'Jovem aprendiz') as any;
       setCurrentUser({
         id: profile.id,
         username: profile.username,
         name: profile.name,
-        role: isOwner ? 'Administrador' : profile.role,
+        role: dbRole,
       });
     } else if (user) {
       // Fallback if profile doesn't exist
+      const fallbackRole = (user.user_metadata?.role || 'Jovem aprendiz') as any;
       setCurrentUser({
         id: user.id,
         username: user.email?.split('@')[0] || 'user',
         name: user.user_metadata?.name || user.email || 'Usuário',
-        role: isOwner ? 'Administrador' : ((user.user_metadata?.role as any) || 'Jovem aprendiz'),
+        role: fallbackRole,
       });
     }
   }

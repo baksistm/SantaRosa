@@ -98,6 +98,10 @@ export default function AtividadesPage() {
 
       setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
       setActiveTab('lista');
+
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getAtividades();
+      setAtividades(data);
     } catch (error) {
       console.error('Error saving activity:', error);
       alert('Erro ao salvar atividade');
@@ -148,7 +152,8 @@ export default function AtividadesPage() {
     }
   };
 
-  const canManage = currentUser?.role === 'Administrador' || currentUser?.role === 'Supervisor';
+  const userRole = currentUser?.role?.trim();
+  const canManage = userRole === 'Administrador' || userRole === 'Supervisor';
 
   return (
     <div className="space-y-6">

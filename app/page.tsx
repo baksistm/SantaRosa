@@ -29,34 +29,44 @@ export default function LoginPage() {
     setError('');
 
     try {
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedPassword = password.trim();
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
       });
 
       if (authError) throw authError;
 
       if (data.user) {
-        const userEmail = data.user.email?.toLowerCase();
-        const isOwner = userEmail === 'brunoalekohler@gmail.com';
+        // Fetch profile from Supabase to get the 'function' (role)
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+
+        // Map 'function' from DB to our local 'role'
+        const dbRole = (profile?.function?.trim() || 'Jovem aprendiz') as UserRole;
 
         // Check if user exists in our local store
         let localUser = users.find(u => u.id === data.user.id);
 
         if (!localUser) {
-          // If not in store, create a default entry
           localUser = {
             id: data.user.id,
-            username: data.user.email?.split('@')[0] || 'user',
-            name: data.user.user_metadata?.name || data.user.email || 'Usuário',
-            role: isOwner ? 'Administrador' : 'Jovem aprendiz',
+            username: profile?.username || data.user.user_metadata?.username || data.user.email?.split('@')[0] || 'user',
+            name: profile?.name || data.user.user_metadata?.name || data.user.email || 'Usuário',
+            role: dbRole,
           };
           addUser(localUser);
-        }
-
-        // Always ensure owner is Admin
-        if (isOwner && localUser.role !== 'Administrador') {
-          localUser.role = 'Administrador';
+        } else {
+          // Update local role from DB
+          localUser.role = dbRole;
+          localUser.name = profile?.name || localUser.name;
+          localUser.username = profile?.username || localUser.username;
+          updateUser(localUser);
         }
 
         setCurrentUser(localUser);
@@ -78,7 +88,7 @@ export default function LoginPage() {
       >
         <div className="p-8">
           <div className="flex flex-col items-center mb-8">
-            <Logo size={96} className="mb-4 shadow-xl shadow-blue-900/10" />
+            <Logo size={96} variant="standard" className="mb-4 shadow-xl shadow-blue-900/10" />
             <h1 className="text-2xl font-bold text-[#046393] text-center">
               Santa Rosa Malhas
             </h1>
