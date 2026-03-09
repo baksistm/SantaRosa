@@ -43,7 +43,7 @@ export default function AtividadesPage() {
     // Subscribe to changes
     const channel = supabase
       .channel('atividades_changes')
-      .on('postgres_changes', { event: '*', table: 'atividades' }, () => {
+      .on('postgres_changes' as any, { event: '*', table: 'atividades' }, () => {
         supabaseService.getAtividades().then(setAtividades);
       })
       .subscribe();

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Logo } from '@/components/Logo';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -121,9 +120,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       >
         <div className="h-full flex flex-col">
           {/* Logo Section */}
-          <div className="p-6 flex items-center justify-between border-b border-slate-100">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <Logo size={40} variant="white" />
+          <div className="p-4 flex items-center justify-between border-b border-slate-100">
+            <div className="flex items-center gap-2 overflow-hidden">
               {isSidebarOpen && (
                 <div className="overflow-hidden whitespace-nowrap">
                   <h1 className="font-bold text-slate-800 text-sm leading-tight">Santa Rosa</h1>
@@ -203,9 +201,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <div className="lg:hidden">
-              <Logo size={32} variant="white" />
-            </div>
           </div>
           
           <div className="flex items-center gap-4">

@@ -13,7 +13,6 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
-import { Logo } from '@/components/Logo';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -84,10 +83,6 @@ export default function SignupPage() {
   return (
     <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
-        <div className="flex justify-center">
-          <Logo />
-        </div>
-
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

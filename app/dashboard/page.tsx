@@ -40,14 +40,14 @@ export default function DashboardPage() {
     // Subscribe to changes
     const romaneiosChannel = supabase
       .channel('dashboard_romaneios')
-      .on('postgres_changes', { event: '*', table: 'romaneios' }, () => {
+      .on('postgres_changes' as any, { event: '*', table: 'romaneios' }, () => {
         supabaseService.getRomaneios().then(setRomaneios);
       })
       .subscribe();
 
     const atividadesChannel = supabase
       .channel('dashboard_atividades')
-      .on('postgres_changes', { event: '*', table: 'atividades' }, () => {
+      .on('postgres_changes' as any, { event: '*', table: 'atividades' }, () => {
         supabaseService.getAtividades().then(setAtividades);
       })
       .subscribe();

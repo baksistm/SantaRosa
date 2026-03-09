@@ -53,7 +53,7 @@ export default function RomaneiosPage() {
     // Subscribe to changes
     const channel = supabase
       .channel('romaneios_changes')
-      .on('postgres_changes', { event: '*', table: 'romaneios' }, () => {
+      .on('postgres_changes' as any, { event: '*', table: 'romaneios' }, () => {
         fetchRomaneios();
       })
       .subscribe();
@@ -203,27 +203,11 @@ export default function RomaneiosPage() {
     doc.setFillColor(4, 99, 147);
     doc.rect(0, 0, 210, 40, 'F');
     
-    // Add Logo to PDF
-    try {
-      const logoUrl = '/logo.png';
-      const img = new Image();
-      img.src = logoUrl;
-      await new Promise((resolve) => {
-        img.onload = resolve;
-        img.onerror = resolve; // Continue even if logo fails
-      });
-      if (img.complete && img.naturalWidth > 0) {
-        doc.addImage(img, 'PNG', 15, 8, 24, 24);
-      }
-    } catch (e) {
-      console.error('Error adding logo to PDF:', e);
-    }
-    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text('Santa Rosa Malhas | Filial 3', 45, 20);
+    doc.text('Santa Rosa Malhas | Filial 3', 15, 20);
     doc.setFontSize(10);
-    doc.text('CNPJ: 81.326.084/0003-11', 45, 30);
+    doc.text('CNPJ: 81.326.084/0003-11', 15, 30);
     
     // User Info
     doc.setTextColor(100, 100, 100);

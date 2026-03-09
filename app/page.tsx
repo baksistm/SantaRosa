@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Logo } from '@/components/Logo';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
@@ -87,8 +86,7 @@ export default function LoginPage() {
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
       >
         <div className="p-8">
-          <div className="flex flex-col items-center mb-8">
-            <Logo size={96} variant="standard" className="mb-4 shadow-xl shadow-blue-900/10" />
+          <div className="flex flex-col items-center mb-6">
             <h1 className="text-2xl font-bold text-[#046393] text-center">
               Santa Rosa Malhas
             </h1>
