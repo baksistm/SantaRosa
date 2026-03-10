@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
 import Link from 'next/link';
-import { LogIn, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
+import { LogIn, User as UserIcon, Lock, AlertCircle, Shirt } from 'lucide-react';
 import { UserRole } from '@/lib/types';
 
 export default function LoginPage() {
@@ -28,9 +29,20 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setError('Configuração do sistema pendente. Por favor, configure as chaves do Supabase no painel de Segredos.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const trimmedEmail = email.trim().toLowerCase();
+      let trimmedEmail = email.trim().toLowerCase();
       const trimmedPassword = password.trim();
+
+      // Se o usuário digitar apenas 'bruno', converter para o e-mail do admin
+      if (trimmedEmail === 'bruno') {
+        trimmedEmail = 'brunoalekohler@gmail.com';
+      }
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
@@ -87,8 +99,17 @@ export default function LoginPage() {
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
       >
         <div className="p-8">
-          <div className="flex flex-col items-center mb-6">
-            <h1 className="text-2xl font-bold text-[#046393] text-center">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-20 h-20 relative mb-4">
+              <Image 
+                src="/assets/logo.png" 
+                alt="Santa Rosa Logo" 
+                fill 
+                className="object-contain"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 text-center">
               Santa Rosa Malhas
             </h1>
             <p className="text-slate-500 font-medium">Filial 3</p>
@@ -107,15 +128,15 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">E-mail</label>
+              <label className="text-sm font-semibold text-slate-700 ml-1">E-mail ou Usuário</label>
               <div className="relative">
                 <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#046393] focus:border-transparent transition-all"
-                  placeholder="Seu e-mail"
+                  placeholder="Seu e-mail ou usuário"
                   required
                 />
               </div>
@@ -154,9 +175,12 @@ export default function LoginPage() {
         </div>
         
         <div className="bg-slate-50 p-6 text-center border-t border-slate-100">
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-2">
             Sistema de Gestão Interna
           </p>
+          <Link href="/cadastro" className="text-xs text-[#046393] font-bold hover:underline">
+            Não tem uma conta? Cadastre-se
+          </Link>
         </div>
       </motion.div>
     </div>

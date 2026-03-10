@@ -203,11 +203,31 @@ export default function RomaneiosPage() {
     doc.setFillColor(4, 99, 147);
     doc.rect(0, 0, 210, 40, 'F');
     
+    // Try to add logo image
+    try {
+      const img = new (window as any).Image();
+      img.src = '/assets/logo-azl.png';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      doc.addImage(img, 'PNG', 15, 10, 15, 15);
+    } catch (e) {
+      // Fallback to text logo if image fails
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(15, 10, 15, 15, 3, 3, 'F');
+      doc.setTextColor(4, 99, 147);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SR', 19, 20);
+    }
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text('Santa Rosa Malhas | Filial 3', 15, 20);
+    doc.text('Santa Rosa Malhas | Filial 3', 35, 20);
     doc.setFontSize(10);
-    doc.text('CNPJ: 81.326.084/0003-11', 15, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.text('CNPJ: 81.326.084/0003-11', 35, 30);
     
     // User Info
     doc.setTextColor(100, 100, 100);

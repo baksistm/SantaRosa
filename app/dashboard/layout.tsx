@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,7 +16,8 @@ import {
   Menu, 
   X,
   User as UserIcon,
-  ChevronRight
+  ChevronRight,
+  Shirt
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -122,6 +124,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Logo Section */}
           <div className="p-4 flex items-center justify-between border-b border-slate-100">
             <div className="flex items-center gap-2 overflow-hidden">
+              <div className="w-10 h-10 relative flex-shrink-0">
+                <Image 
+                  src="/assets/logo.png" 
+                  alt="Logo" 
+                  fill 
+                  className="object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
               {isSidebarOpen && (
                 <div className="overflow-hidden whitespace-nowrap">
                   <h1 className="font-bold text-slate-800 text-sm leading-tight">Santa Rosa</h1>
@@ -201,6 +212,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
+            <div className="lg:hidden flex items-center gap-2">
+              <div className="w-8 h-8 relative">
+                <Image 
+                  src="/assets/logo.png" 
+                  alt="Logo" 
+                  fill 
+                  className="object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <span className="font-bold text-slate-800 text-sm">Santa Rosa</span>
+            </div>
           </div>
           
           <div className="flex items-center gap-4">
