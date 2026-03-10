@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { LogIn, User as UserIcon, Lock, AlertCircle } from 'lucide-react';
+import { UserRole } from '@/lib/types';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -14,7 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { setCurrentUser, currentUser, users, addUser } = useAppStore();
+  const { setCurrentUser, currentUser, users, addUser, updateUser } = useAppStore();
 
   useEffect(() => {
     if (currentUser) {

@@ -150,7 +150,7 @@ export default function ConfiguracoesPage() {
               <button 
                 onClick={() => {
                   setEditingId(null);
-                  setFormData({ name: '', username: '', password: '', role: 'Jovem aprendiz' });
+                  setFormData({ name: '', username: '', email: '', password: '', role: 'Jovem aprendiz' });
                   setIsAdding(true);
                 }}
                 className="px-4 py-2 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all flex items-center gap-2"

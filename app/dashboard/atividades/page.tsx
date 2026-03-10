@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AtividadePeriodo } from '@/lib/types';
 
 export default function AtividadesPage() {
   const { currentUser, atividades, setAtividades, users, setUsers } = useAppStore();
@@ -63,7 +64,7 @@ export default function AtividadesPage() {
     titulo: '',
     descricao: '',
     link: '',
-    periodo: 'Sem período' as any,
+    periodo: 'Sem período' as AtividadePeriodo,
     assigned_to: ''
   });
 
@@ -173,7 +174,7 @@ export default function AtividadesPage() {
             <button 
               onClick={() => {
                 setEditingId(null);
-                setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
+                setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
                 setActiveTab('novo');
               }}
               className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'novo' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
@@ -228,7 +229,7 @@ export default function AtividadesPage() {
                     <label className="text-sm font-bold text-slate-700">Período para Entrega</label>
                     <select
                       value={formData.periodo}
-                      onChange={e => setFormData({...formData, periodo: e.target.value as any})}
+                      onChange={e => setFormData({...formData, periodo: e.target.value as AtividadePeriodo})}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
                     >
                       <option>Até o final do dia</option>

@@ -30,7 +30,7 @@ export default function RomaneiosPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'lista' | 'novo' | 'verificacao'>(
-    (searchParams.get('action') === 'new' ? 'novo' : 'lista') as any
+    (searchParams.get('action') === 'new' ? 'novo' : 'lista') as 'lista' | 'novo' | 'verificacao'
   );
   
   const [searchTerm, setSearchTerm] = useState('');

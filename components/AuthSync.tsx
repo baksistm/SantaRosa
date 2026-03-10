@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAppStore } from '@/lib/store';
+import { UserRole } from '@/lib/types';
 
 export function AuthSync() {
   const { setCurrentUser } = useAppStore();
 
-  async function syncUser(userId: string) {
+  const syncUser = useCallback(async (userId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
 
     const { data: profile } = await supabase
@@ -17,7 +18,7 @@ export function AuthSync() {
       .single();
 
     if (profile) {
-      const dbRole = (profile.function?.trim() || 'Jovem aprendiz') as any;
+      const dbRole = (profile.function?.trim() || 'Jovem aprendiz') as UserRole;
       setCurrentUser({
         id: profile.id,
         username: profile.username,
@@ -26,7 +27,7 @@ export function AuthSync() {
       });
     } else if (user) {
       // Fallback if profile doesn't exist
-      const fallbackRole = (user.user_metadata?.role || 'Jovem aprendiz') as any;
+      const fallbackRole = (user.user_metadata?.role || 'Jovem aprendiz') as UserRole;
       setCurrentUser({
         id: user.id,
         username: user.email?.split('@')[0] || 'user',
@@ -34,7 +35,7 @@ export function AuthSync() {
         role: fallbackRole,
       });
     }
-  }
+  }, [setCurrentUser]);
 
   useEffect(() => {
     // Check active sessions and sets the user
@@ -54,7 +55,7 @@ export function AuthSync() {
     });
 
     return () => subscription.unsubscribe();
-  }, [setCurrentUser]);
+  }, [setCurrentUser, syncUser]);
 
   return null;
 }
