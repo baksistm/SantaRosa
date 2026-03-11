@@ -31,5 +31,10 @@ export interface Atividade {
   periodo: AtividadePeriodo;
   concluida: boolean;
   assigned_to?: string; // ID do usuário (Jovem aprendiz)
+  assignedUser?: {
+    id: string;
+    name: string;
+    username: string;
+  };
   createdAt: string;
 }

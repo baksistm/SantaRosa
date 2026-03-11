@@ -65,7 +65,7 @@ export default function AtividadesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setAtividades]);
+  }, [setAtividades, setUsers]);
 
   // Filter Jovens for assignment
   const jovens = useMemo(() => {
