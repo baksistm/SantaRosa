@@ -37,14 +37,24 @@ export default function RomaneiosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [isSupabaseConfigured] = useState(() => {
+    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    return hasUrl && hasKey;
+  });
+
   // Fetch romaneios on mount
   useEffect(() => {
     const fetchRomaneios = async () => {
       try {
         const data = await supabaseService.getRomaneios();
         setRomaneios(data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching romaneios:', error);
+        // If it's a connection error, it might be due to missing keys or RLS
+        if (error.message === 'Failed to fetch') {
+          console.warn('Possible connection issue or missing Supabase keys.');
+        }
       }
     };
 
@@ -102,52 +112,76 @@ export default function RomaneiosPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!currentUser) {
+      alert('Sessão expirada. Por favor, faça login novamente.');
+      return;
+    }
+
+    if (!formData.cliente || !formData.nf) {
+      alert('Por favor, preencha os campos obrigatórios (Cliente e NF).');
+      return;
+    }
+
+    if (isNaN(formData.entrada) || isNaN(formData.saldo)) {
+      alert('Entrada e Saldo devem ser números válidos.');
+      return;
+    }
+
     setIsLoading(true);
     
     try {
+      const status = formData.saldo < umPorCento ? 'Cadastrado' : 'Pendente';
+      
       if (editingId) {
-        const { error } = await supabase
-          .from('romaneios')
-          .update({
-            cliente: formData.cliente,
-            cliente_filial: formData.clienteFilial,
-            nf: formData.nf,
-            entrada: formData.entrada,
-            saldo: formData.saldo,
-            numero_romaneio: formData.numeroRomaneio
-          })
-          .eq('id', editingId);
-        
-        if (error) throw error;
-        setEditingId(null);
+        await supabaseService.updateRomaneio(editingId, {
+          cliente: formData.cliente,
+          cliente_filial: formData.clienteFilial,
+          nf: formData.nf,
+          entrada: Number(formData.entrada),
+          saldo: Number(formData.saldo),
+          numero_romaneio: formData.numeroRomaneio,
+          status
+        });
+        alert('Romaneio atualizado com sucesso!');
       } else {
-        const status = formData.saldo < umPorCento ? 'Cadastrado' : 'Pendente';
-        
-        const { error } = await supabase
-          .from('romaneios')
-          .insert([{
-            cliente: formData.cliente,
-            cliente_filial: formData.clienteFilial,
-            nf: formData.nf,
-            entrada: formData.entrada,
-            saldo: formData.saldo,
-            numero_romaneio: formData.numeroRomaneio,
-            status,
-            created_by: currentUser?.id
-          }]);
-        
-        if (error) throw error;
+        await supabaseService.createRomaneio({
+          cliente: formData.cliente,
+          cliente_filial: formData.clienteFilial,
+          nf: formData.nf,
+          entrada: Number(formData.entrada),
+          saldo: Number(formData.saldo),
+          numero_romaneio: formData.numeroRomaneio || undefined,
+          status,
+          created_by: currentUser.id
+        });
+        alert('Romaneio cadastrado com sucesso!');
       }
 
       setFormData({ cliente: '', clienteFilial: '', nf: '', entrada: 0, saldo: 0, numeroRomaneio: '' });
       setActiveTab('lista');
+      setEditingId(null);
       
       // Manual fetch as a fallback for realtime
       const data = await supabaseService.getRomaneios();
       setRomaneios(data);
-    } catch (error) {
-      console.error('Error saving romaneio:', error);
-      alert('Erro ao salvar romaneio');
+    } catch (error: any) {
+      console.error('Full error object:', error);
+      let errorMsg = 'Erro desconhecido';
+      
+      if (error && typeof error === 'object') {
+        errorMsg = error.message || error.error_description || error.code || JSON.stringify(error);
+        if (error.details) errorMsg += ` | Detalhes: ${error.details}`;
+        if (error.hint) errorMsg += ` | Dica: ${error.hint}`;
+      } else if (typeof error === 'string') {
+        errorMsg = error;
+      }
+      
+      if (errorMsg === '{}' || errorMsg === '[object Object]') {
+        errorMsg = 'Erro técnico no banco de dados. Verifique se as tabelas foram criadas corretamente.';
+      }
+      
+      alert(`Erro ao salvar romaneio: ${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -167,29 +201,23 @@ export default function RomaneiosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este romaneio?')) return;
-    
+    // Removido confirm() para evitar bloqueio em iframe
     try {
-      const { error } = await supabase
-        .from('romaneios')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-    } catch (error) {
+      await supabaseService.deleteRomaneio(id);
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getRomaneios();
+      setRomaneios(data);
+    } catch (error: any) {
       console.error('Error deleting romaneio:', error);
-      alert('Erro ao excluir romaneio');
     }
   };
 
   const handleUpdateStatus = async (id: string, status: string) => {
     try {
-      const { error } = await supabase
-        .from('romaneios')
-        .update({ status })
-        .eq('id', id);
-      
-      if (error) throw error;
+      await supabaseService.updateRomaneioStatus(id, status);
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getRomaneios();
+      setRomaneios(data);
     } catch (error) {
       console.error('Error updating status:', error);
       alert('Erro ao atualizar status');
@@ -392,9 +420,17 @@ export default function RomaneiosPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-8 py-3 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all"
+                    disabled={isLoading}
+                    className="px-8 py-3 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {editingId ? 'Salvar Alterações' : 'Cadastrar Romaneio'}
+                    {isLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      editingId ? 'Salvar Alterações' : 'Cadastrar Romaneio'
+                    )}
                   </button>
                 </div>
               </form>
@@ -451,6 +487,11 @@ export default function RomaneiosPage() {
                             <FileText size={32} />
                           </div>
                           <p className="text-slate-400 font-medium">Nenhum romaneio encontrado</p>
+                          {!isSupabaseConfigured && (
+                            <p className="text-amber-500 text-xs font-bold mt-2">
+                              Atenção: Sistema Offline. Configure as chaves do Supabase.
+                            </p>
+                          )}
                         </td>
                       </tr>
                     ) : (

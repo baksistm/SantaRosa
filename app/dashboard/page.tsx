@@ -178,7 +178,7 @@ export default function DashboardPage() {
           </h2>
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 space-y-4">
-                {atividades.filter(atv => userRole !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id).length === 0 ? (
+                {atividades.length === 0 ? (
                   <div className="text-center py-8">
                     <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
                       <CheckSquare size={32} />
@@ -187,7 +187,6 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   atividades
-                    .filter(atv => userRole !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id)
                     .slice(0, 5)
                     .map((atv) => (
                       <div key={atv.id} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors">

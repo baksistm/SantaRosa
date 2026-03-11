@@ -17,7 +17,8 @@ import {
   X,
   User as UserIcon,
   ChevronRight,
-  Shirt
+  Shirt,
+  AlertTriangle
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -31,6 +32,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSupabaseConfigured] = useState(() => {
+    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    return hasUrl && hasKey;
+  });
 
   useEffect(() => {
     // Set initial state and handle resize
@@ -227,11 +233,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           
           <div className="flex items-center gap-4">
+            {!isSupabaseConfigured && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-100 rounded-lg text-amber-600 text-xs font-bold animate-bounce">
+                <AlertTriangle size={14} />
+                <span>Configuração Pendente</span>
+              </div>
+            )}
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Status do Sistema</span>
-              <span className="text-xs font-medium text-emerald-500 flex items-center gap-1">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                Online
+              <span className={cn(
+                "text-xs font-medium flex items-center gap-1",
+                isSupabaseConfigured ? "text-emerald-500" : "text-amber-500"
+              )}>
+                <span className={cn(
+                  "w-2 h-2 rounded-full",
+                  isSupabaseConfigured ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                )} />
+                {isSupabaseConfigured ? 'Online' : 'Offline'}
               </span>
             </div>
           </div>

@@ -27,6 +27,11 @@ export default function AtividadesPage() {
   const [activeTab, setActiveTab] = useState<'lista' | 'novo'>('lista');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSupabaseConfigured] = useState(() => {
+    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    return hasUrl && hasKey;
+  });
 
   // Fetch activities on mount
   useEffect(() => {
@@ -64,48 +69,60 @@ export default function AtividadesPage() {
     titulo: '',
     descricao: '',
     link: '',
-    periodo: 'Sem período' as AtividadePeriodo,
-    assigned_to: ''
+    periodo: 'Sem período' as AtividadePeriodo
   });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!currentUser) {
+      alert('Sessão expirada. Por favor, faça login novamente.');
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      const payload = {
-        ...formData,
-        assigned_to: formData.assigned_to || null
-      };
-
       if (editingId) {
-        const { error } = await supabase
-          .from('atividades')
-          .update(payload)
-          .eq('id', editingId);
-        
-        if (error) throw error;
-        setEditingId(null);
+        await supabaseService.updateAtividade(editingId, {
+          ...formData,
+          assigned_to: null
+        });
+        alert('Atividade atualizada com sucesso!');
       } else {
-        const { error } = await supabase
-          .from('atividades')
-          .insert([{
-            ...payload,
-            concluida: false
-          }]);
-        
-        if (error) throw error;
+        await supabaseService.createAtividade({
+          ...formData,
+          concluida: false,
+          assigned_to: null,
+          created_by: currentUser.id
+        });
+        alert('Atividade criada com sucesso!');
       }
 
-      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
+      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
       setActiveTab('lista');
+      setEditingId(null);
 
       // Manual fetch as a fallback for realtime
       const data = await supabaseService.getAtividades();
       setAtividades(data);
-    } catch (error) {
-      console.error('Error saving activity:', error);
-      alert('Erro ao salvar atividade');
+    } catch (error: any) {
+      console.error('Full error object:', error);
+      let errorMsg = 'Erro desconhecido';
+      
+      if (error && typeof error === 'object') {
+        errorMsg = error.message || error.error_description || error.code || JSON.stringify(error);
+        if (error.details) errorMsg += ` | Detalhes: ${error.details}`;
+        if (error.hint) errorMsg += ` | Dica: ${error.hint}`;
+      } else if (typeof error === 'string') {
+        errorMsg = error;
+      }
+      
+      if (errorMsg === '{}' || errorMsg === '[object Object]') {
+        errorMsg = 'Erro técnico no banco de dados. Verifique se as tabelas foram criadas corretamente.';
+      }
+      
+      alert(`Erro ao salvar atividade: ${errorMsg}`);
     } finally {
       setIsLoading(false);
     }
@@ -116,40 +133,37 @@ export default function AtividadesPage() {
       titulo: atividade.titulo,
       descricao: atividade.descricao,
       link: atividade.link || '',
-      periodo: atividade.periodo,
-      assigned_to: atividade.assigned_to || ''
+      periodo: atividade.periodo
     });
     setEditingId(atividade.id);
     setActiveTab('novo');
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta atividade?')) return;
-    
+    // Removido confirm() para evitar bloqueio em iframe
     try {
-      const { error } = await supabase
-        .from('atividades')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-    } catch (error) {
+      await supabaseService.deleteAtividade(id);
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getAtividades();
+      setAtividades(data);
+    } catch (error: any) {
       console.error('Error deleting activity:', error);
-      alert('Erro ao excluir atividade');
     }
   };
 
   const toggleStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('atividades')
-        .update({ concluida: !currentStatus })
-        .eq('id', id);
-      
-      if (error) throw error;
-    } catch (error) {
+      await supabaseService.toggleAtividade(id, !currentStatus);
+      // Manual fetch as a fallback for realtime
+      const data = await supabaseService.getAtividades();
+      setAtividades(data);
+    } catch (error: any) {
       console.error('Error toggling status:', error);
-      alert('Erro ao atualizar status');
+      let errorMsg = error instanceof Error ? error.message : String(error);
+      if (errorMsg === '[object Object]') {
+        errorMsg = JSON.stringify(error);
+      }
+      alert(`Erro ao atualizar status: ${errorMsg}`);
     }
   };
 
@@ -174,7 +188,7 @@ export default function AtividadesPage() {
             <button 
               onClick={() => {
                 setEditingId(null);
-                setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
+                setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
                 setActiveTab('novo');
               }}
               className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'novo' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
@@ -200,7 +214,7 @@ export default function AtividadesPage() {
                 {editingId ? 'Editar Atividade' : 'Cadastrar Nova Atividade'}
               </h2>
               <form onSubmit={handleSave} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Título da Atividade</label>
                     <input
@@ -211,19 +225,6 @@ export default function AtividadesPage() {
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
                       placeholder="Ex: Organização de arquivos"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Responsável (Jovem Aprendiz)</label>
-                    <select
-                      value={formData.assigned_to}
-                      onChange={e => setFormData({...formData, assigned_to: e.target.value})}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
-                    >
-                      <option value="">Selecione um jovem...</option>
-                      {jovens.map(jovem => (
-                        <option key={jovem.id} value={jovem.id}>{jovem.username}</option>
-                      ))}
-                    </select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Período para Entrega</label>
@@ -276,9 +277,17 @@ export default function AtividadesPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-8 py-3 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all"
+                    disabled={isLoading}
+                    className="px-8 py-3 bg-[#046393] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#03527a] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {editingId ? 'Salvar Alterações' : 'Criar Atividade'}
+                    {isLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      editingId ? 'Salvar Alterações' : 'Criar Atividade'
+                    )}
                   </button>
                 </div>
               </form>
@@ -290,17 +299,22 @@ export default function AtividadesPage() {
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {atividades.filter(atv => currentUser?.role !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id).length === 0 ? (
+            {atividades.length === 0 ? (
               <div className="col-span-full bg-white p-12 rounded-3xl border border-slate-100 text-center">
                 <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
                   <CheckSquare size={40} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-700">Nenhuma atividade</h3>
-                <p className="text-slate-400">As atividades cadastradas aparecerão aqui.</p>
+                {!isSupabaseConfigured ? (
+                  <p className="text-amber-500 text-xs font-bold mt-2">
+                    Atenção: Sistema Offline. Configure as chaves do Supabase.
+                  </p>
+                ) : (
+                  <p className="text-slate-400">As atividades cadastradas aparecerão aqui.</p>
+                )}
               </div>
             ) : (
               atividades
-                .filter(atv => currentUser?.role !== 'Jovem aprendiz' || atv.assigned_to === currentUser.id)
                 .map((atv) => (
                   <motion.div
                     layout
@@ -344,12 +358,6 @@ export default function AtividadesPage() {
                         <Clock size={14} />
                         {atv.periodo}
                       </div>
-                      {atv.assigned_to && (
-                        <div className="flex items-center gap-2 text-xs font-bold text-[#046393] uppercase tracking-wider">
-                          <UserIcon size={14} />
-                          {users.find(u => u.id === atv.assigned_to)?.username || 'Usuário não encontrado'}
-                        </div>
-                      )}
                     </div>
                     {atv.link && (
                       <a 
