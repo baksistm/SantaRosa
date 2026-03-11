@@ -26,7 +26,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function RomaneiosPage() {
-  const { currentUser, romaneios, setRomaneios } = useAppStore();
+  const { currentUser, romaneios, setRomaneios, users, setUsers } = useAppStore();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'lista' | 'novo' | 'verificacao'>(
@@ -36,6 +36,12 @@ export default function RomaneiosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [pdfFilters, setPdfFilters] = useState({
+    startDate: '',
+    endDate: '',
+    createdBy: ''
+  });
+  const [showPdfFilters, setShowPdfFilters] = useState(false);
 
   const [isSupabaseConfigured] = useState(() => {
     const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,33 +51,33 @@ export default function RomaneiosPage() {
 
   // Fetch romaneios on mount
   useEffect(() => {
-    const fetchRomaneios = async () => {
+    const fetchData = async () => {
       try {
-        const data = await supabaseService.getRomaneios();
-        setRomaneios(data);
+        const [romaneiosData, profilesData] = await Promise.all([
+          supabaseService.getRomaneios(),
+          supabaseService.getProfiles()
+        ]);
+        setRomaneios(romaneiosData);
+        setUsers(profilesData);
       } catch (error: any) {
-        console.error('Error fetching romaneios:', error);
-        // If it's a connection error, it might be due to missing keys or RLS
-        if (error.message === 'Failed to fetch') {
-          console.warn('Possible connection issue or missing Supabase keys.');
-        }
+        console.error('Error fetching data:', error);
       }
     };
 
-    fetchRomaneios();
+    fetchData();
 
     // Subscribe to changes
     const channel = supabase
       .channel('romaneios_changes')
       .on('postgres_changes' as any, { event: '*', table: 'romaneios' }, () => {
-        fetchRomaneios();
+        supabaseService.getRomaneios().then(setRomaneios);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setRomaneios]);
+  }, [setRomaneios, setUsers]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -239,23 +245,23 @@ export default function RomaneiosPage() {
         img.onload = resolve;
         img.onerror = reject;
       });
-      doc.addImage(img, 'PNG', 15, 10, 15, 15);
+      doc.addImage(img, 'PNG', 15, 5, 25, 25);
     } catch (e) {
       // Fallback to text logo if image fails
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(15, 10, 15, 15, 3, 3, 'F');
+      doc.roundedRect(15, 5, 25, 25, 3, 3, 'F');
       doc.setTextColor(4, 99, 147);
-      doc.setFontSize(10);
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('SR', 19, 20);
+      doc.text('SR', 22, 20);
     }
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
-    doc.text('Santa Rosa Malhas | Filial 3', 35, 20);
+    doc.text('Santa Rosa Malhas | Filial 3', 45, 20);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text('CNPJ: 81.326.084/0003-11', 35, 30);
+    doc.text('CNPJ: 81.326.084/0003-11', 45, 30);
     
     // User Info
     doc.setTextColor(100, 100, 100);
@@ -264,8 +270,21 @@ export default function RomaneiosPage() {
     doc.text(`Gerado por: ${currentUser?.name}`, 150, 50);
     doc.text(`Data: ${format(now, 'dd/MM/yyyy HH:mm')}`, 150, 55);
     
+    // Filtered data for PDF
+    let pdfData = romaneios;
+    
+    if (pdfFilters.startDate) {
+      pdfData = pdfData.filter(r => new Date(r.createdAt) >= new Date(pdfFilters.startDate));
+    }
+    if (pdfFilters.endDate) {
+      pdfData = pdfData.filter(r => new Date(r.createdAt) <= new Date(pdfFilters.endDate));
+    }
+    if (pdfFilters.createdBy) {
+      pdfData = pdfData.filter(r => r.createdBy === pdfFilters.createdBy);
+    }
+
     // Table
-    const tableData = filteredRomaneios.map(r => [
+    const tableData = pdfData.map(r => [
       r.numeroRomaneio || '-',
       r.cliente,
       r.clienteFilial || '-',
@@ -284,6 +303,7 @@ export default function RomaneiosPage() {
     });
 
     doc.save(`romaneios_${format(now, 'yyyyMMdd_HHmm')}.pdf`);
+    setShowPdfFilters(false);
   };
 
   return (
@@ -454,13 +474,58 @@ export default function RomaneiosPage() {
                   className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#046393] outline-none shadow-sm"
                 />
               </div>
-              <button 
-                onClick={generatePDF}
-                className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
-              >
-                <Printer size={20} />
-                Imprimir PDF
-              </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowPdfFilters(!showPdfFilters)}
+                  className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  <Printer size={20} />
+                  Imprimir PDF
+                </button>
+                
+                {showPdfFilters && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-4">
+                    <h3 className="font-bold text-slate-800 text-sm">Filtros do PDF</h3>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Data Início</label>
+                      <input 
+                        type="date" 
+                        value={pdfFilters.startDate}
+                        onChange={e => setPdfFilters({...pdfFilters, startDate: e.target.value})}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Data Fim</label>
+                      <input 
+                        type="date" 
+                        value={pdfFilters.endDate}
+                        onChange={e => setPdfFilters({...pdfFilters, endDate: e.target.value})}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Cadastrado por</label>
+                      <select 
+                        value={pdfFilters.createdBy}
+                        onChange={e => setPdfFilters({...pdfFilters, createdBy: e.target.value})}
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm"
+                      >
+                        <option value="">Todos os usuários</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button 
+                      onClick={generatePDF}
+                      className="w-full py-2 bg-[#046393] text-white font-bold rounded-xl text-sm shadow-lg"
+                    >
+                      Gerar PDF
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Table */}

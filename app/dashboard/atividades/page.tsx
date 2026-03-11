@@ -16,11 +16,15 @@ import {
   FileText,
   Calendar,
   AlertCircle,
-  User as UserIcon
+  User as UserIcon,
+  Printer,
+  Download
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AtividadePeriodo } from '@/lib/types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function AtividadesPage() {
   const { currentUser, atividades, setAtividades, users, setUsers } = useAppStore();
@@ -37,8 +41,12 @@ export default function AtividadesPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const atividadesData = await supabaseService.getAtividades();
+        const [atividadesData, profilesData] = await Promise.all([
+          supabaseService.getAtividades(),
+          supabaseService.getProfiles()
+        ]);
         setAtividades(atividadesData);
+        setUsers(profilesData);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -69,8 +77,71 @@ export default function AtividadesPage() {
     titulo: '',
     descricao: '',
     link: '',
-    periodo: 'Sem período' as AtividadePeriodo
+    periodo: 'Sem período' as AtividadePeriodo,
+    assigned_to: ''
   });
+
+  const generatePDF = async () => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFillColor(4, 99, 147);
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    // Try to add logo image
+    try {
+      const img = new (window as any).Image();
+      img.src = '/assets/logo-azl.png';
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+      doc.addImage(img, 'PNG', 15, 5, 25, 25);
+    } catch (e) {
+      // Fallback to text logo if image fails
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(15, 5, 25, 25, 3, 3, 'F');
+      doc.setTextColor(4, 99, 147);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SR', 22, 20);
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text('Lista de Atividades Pendentes', 45, 20);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Santa Rosa Malhas | Filial 3', 45, 30);
+    
+    // User Info
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    const now = new Date();
+    doc.text(`Gerado por: ${currentUser?.name}`, 150, 50);
+    doc.text(`Data: ${format(now, 'dd/MM/yyyy HH:mm')}`, 150, 55);
+    
+    // Pending activities
+    const pendingAtv = atividades.filter(a => !a.concluida);
+
+    // Table
+    const tableData = pendingAtv.map(a => [
+      a.titulo,
+      a.descricao,
+      a.periodo,
+      a.assignedUser?.name || 'Não atribuído'
+    ]);
+
+    autoTable(doc, {
+      startY: 65,
+      head: [['Título', 'Descrição', 'Período', 'Atribuído a']],
+      body: tableData,
+      headStyles: { fillColor: [4, 99, 147] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+    });
+
+    doc.save(`atividades_pendentes_${format(now, 'yyyyMMdd_HHmm')}.pdf`);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,20 +157,20 @@ export default function AtividadesPage() {
       if (editingId) {
         await supabaseService.updateAtividade(editingId, {
           ...formData,
-          assigned_to: null
+          assigned_to: formData.assigned_to || null
         });
         alert('Atividade atualizada com sucesso!');
       } else {
         await supabaseService.createAtividade({
           ...formData,
           concluida: false,
-          assigned_to: null,
+          assigned_to: formData.assigned_to || null,
           created_by: currentUser.id
         });
         alert('Atividade criada com sucesso!');
       }
 
-      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
+      setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
       setActiveTab('lista');
       setEditingId(null);
 
@@ -133,7 +204,8 @@ export default function AtividadesPage() {
       titulo: atividade.titulo,
       descricao: atividade.descricao,
       link: atividade.link || '',
-      periodo: atividade.periodo
+      periodo: atividade.periodo,
+      assigned_to: atividade.assigned_to || ''
     });
     setEditingId(atividade.id);
     setActiveTab('novo');
@@ -177,27 +249,36 @@ export default function AtividadesPage() {
           <h1 className="text-3xl font-bold text-slate-800">Atividades</h1>
           <p className="text-slate-500">Gestão de tarefas e prazos para menores aprendizes.</p>
         </div>
-        {canManage && (
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setActiveTab('lista')}
-              className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'lista' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-            >
-              Ver Atividades
-            </button>
-            <button 
-              onClick={() => {
-                setEditingId(null);
-                setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período' });
-                setActiveTab('novo');
-              }}
-              className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'novo' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
-            >
-              <Plus size={18} />
-              Nova Atividade
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={generatePDF}
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+          >
+            <Printer size={18} />
+            PDF Pendentes
+          </button>
+          {canManage && (
+            <>
+              <button 
+                onClick={() => setActiveTab('lista')}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'lista' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+              >
+                Ver Atividades
+              </button>
+              <button 
+                onClick={() => {
+                  setEditingId(null);
+                  setFormData({ titulo: '', descricao: '', link: '', periodo: 'Sem período', assigned_to: '' });
+                  setActiveTab('novo');
+                }}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${activeTab === 'novo' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
+              >
+                <Plus size={18} />
+                Nova Atividade
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <AnimatePresence mode="wait">
@@ -214,7 +295,7 @@ export default function AtividadesPage() {
                 {editingId ? 'Editar Atividade' : 'Cadastrar Nova Atividade'}
               </h2>
               <form onSubmit={handleSave} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <label className="text-sm font-bold text-slate-700">Título da Atividade</label>
                     <input
@@ -237,6 +318,19 @@ export default function AtividadesPage() {
                       <option>Até o fim da semana</option>
                       <option>Até amanhã no fim do dia</option>
                       <option>Sem período</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">Atribuir a (Opcional)</label>
+                    <select
+                      value={formData.assigned_to}
+                      onChange={e => setFormData({...formData, assigned_to: e.target.value})}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none"
+                    >
+                      <option value="">Ninguém (Aberto)</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -358,6 +452,12 @@ export default function AtividadesPage() {
                         <Clock size={14} />
                         {atv.periodo}
                       </div>
+                      {atv.assignedUser && (
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#046393] uppercase tracking-wider">
+                          <UserIcon size={14} />
+                          Atribuído a: {atv.assignedUser.name}
+                        </div>
+                      )}
                     </div>
                     {atv.link && (
                       <a 

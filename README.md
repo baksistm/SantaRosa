@@ -1,20 +1,55 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Santa Rosa Malhas - Filial 3
+## Sistema de Gestão Interna
 
-# Run and deploy your AI Studio app
+Sistema web desenvolvido para a gestão de romaneios, atividades e controle de acesso da Filial 3 da Santa Rosa Malhas.
 
-This contains everything you need to run your app locally.
+### 🚀 Funcionalidades Principais
 
-View your app in AI Studio: https://ai.studio/apps/aacaf765-3e94-457f-8018-ed5947d7b893
+#### 📦 Gestão de Romaneios
+- **Lançamento:** Cadastro detalhado de entradas com cliente, filial, NF, valores e saldos.
+- **Cálculo Automático:** Sistema calcula automaticamente a tolerância de 1% para conferência.
+- **Verificação:** Fluxo de aprovação/recusa de romaneios com status visual.
+- **Relatórios PDF:** Geração de documentos PDF com filtros por período e por usuário que realizou o cadastro.
 
-## Run Locally
+#### 📝 Gestão de Atividades
+- **Controle de Tarefas:** Criação de atividades com descrição, prazos e links de referência.
+- **Atribuição:** Possibilidade de atribuir tarefas a usuários específicos (ex: Jovens Aprendizes).
+- **Exportação:** Geração de PDF de atividades pendentes com design profissional e logo da empresa.
 
-**Prerequisites:**  Node.js
+#### 🔐 Controle de Acesso e Configurações
+- **Níveis de Permissão:**
+  - **Administrador:** Acesso total, gestão de usuários e configurações do sistema.
+  - **Supervisor:** Gestão de romaneios e atividades.
+  - **Jovem Aprendiz:** Lançamento de romaneios e execução de tarefas atribuídas.
+- **Solicitações de Cadastro:** Sistema de aprovação de novos usuários pelo administrador.
+- **Gestão de Perfil:** Edição e exclusão de usuários diretamente pelo painel administrativo.
 
+### 🛠️ Tecnologias Utilizadas
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- **Frontend:** Next.js 15+, React, Tailwind CSS.
+- **Animações:** Motion (Framer Motion).
+- **Banco de Dados & Autenticação:** Supabase.
+- **Relatórios:** jsPDF e jsPDF-AutoTable.
+- **Ícones:** Lucide React.
+
+### 📋 Requisitos de Instalação
+
+1. Clone o repositório.
+2. Instale as dependências:
+   ```bash
+   npm install
+   ```
+3. Configure as variáveis de ambiente no arquivo `.env` (baseado no `.env.example`):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### 🏗️ Estrutura do Projeto
+
+- `/app`: Rotas e páginas do Next.js (App Router).
+- `/components`: Componentes React reutilizáveis.
+- `/lib`: Serviços, stores (Zustand) e definições de tipos.
+- `/public`: Ativos estáticos como logos e imagens.
+- `/supabase`: Scripts SQL para configuração do banco de dados.
+
+---
+Desenvolvido para otimizar os processos internos da **Santa Rosa Malhas**.

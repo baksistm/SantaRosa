@@ -5,23 +5,22 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
+import { supabaseService } from '@/lib/supabase-service';
 import { motion } from 'motion/react';
 import Link from 'next/link';
-import { LogIn, User as UserIcon, Lock, AlertCircle, Shirt } from 'lucide-react';
+import { LogIn, User as UserIcon, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import { UserRole } from '@/lib/types';
 
 export default function LoginPage() {
-  const [role, setRole] = useState<UserRole | ''>('');
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { setCurrentUser, currentUser } = useAppStore();
-  const [isSupabaseConfigured] = useState(() => {
-    const hasUrl = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const hasKey = !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    return hasUrl && hasKey;
-  });
 
   useEffect(() => {
     if (currentUser) {
@@ -29,41 +28,60 @@ export default function LoginPage() {
     }
   }, [currentUser, router]);
 
-  const handleAccess = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    if (!role) {
-      setError('Por favor, selecione um tipo de usuário.');
-      return;
-    }
-
-    if (role === 'Administrador' && password !== 'Bak33542772') {
-      setError('Senha de administrador incorreta.');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      // Create a mock user object based on the selection
-      // In a real app, we might still want to sign in to Supabase with a generic account
-      // for RLS, but for this simplified request, we'll just set the store.
-      const mockUser = {
-        id: role === 'Administrador' 
-          ? '00000000-0000-0000-0000-000000000001' 
-          : role === 'Supervisor' 
-            ? '00000000-0000-0000-0000-000000000002' 
-            : '00000000-0000-0000-0000-000000000003',
-        username: role.toLowerCase().replace(' ', '.'),
-        name: role,
-        role: role as UserRole,
-      };
+      const { data: profiles, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password);
 
-      setCurrentUser(mockUser);
-      router.push('/dashboard');
+      if (fetchError) throw fetchError;
+
+      if (profiles && profiles.length > 0) {
+        const user = profiles[0];
+        setCurrentUser({
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.function as UserRole,
+        });
+        router.push('/dashboard');
+      } else {
+        setError('Usuário ou senha incorretos.');
+      }
     } catch (err: any) {
-      setError('Erro ao acessar o sistema');
+      console.error('Login error:', err);
+      setError('Erro ao acessar o sistema. Verifique sua conexão.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+
+    try {
+      await supabaseService.createRegistrationRequest({
+        name: fullName,
+        username: username,
+        password: password
+      });
+      setSuccess('Solicitação enviada! Aguarde a aprovação do administrador.');
+      setIsRegistering(false);
+      setFullName('');
+      setUsername('');
+      setPassword('');
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      setError(err.message?.includes('unique') ? 'Este usuário já está em uso.' : 'Erro ao enviar solicitação.');
     } finally {
       setIsLoading(false);
     }
@@ -77,8 +95,8 @@ export default function LoginPage() {
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
       >
         <div className="p-8">
-          <div className="flex flex-col items-center mb-8">
-            <div className="w-20 h-20 relative mb-4">
+          <div className="flex flex-col items-center mb-4">
+            <div className="w-32 h-32 relative -mb-4">
               <Image 
                 src="/assets/logo.png" 
                 alt="Santa Rosa Logo" 
@@ -90,94 +108,107 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-slate-800 text-center">
               Santa Rosa Malhas
             </h1>
-            <p className="text-slate-500 font-medium">Acesso Rápido - Filial 3</p>
+            <p className="text-slate-500 font-medium">Filial 3 - Gestão Interna</p>
           </div>
 
-          <form onSubmit={handleAccess} className="space-y-6">
-            {!isSupabaseConfigured && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 bg-amber-50 border border-amber-100 text-amber-700 rounded-xl flex flex-col gap-1 text-xs"
-              >
-                <div className="flex items-center gap-2 font-bold">
-                  <AlertCircle size={16} />
-                  Atenção: Sistema Offline
-                </div>
-                <p>As chaves do Supabase não foram configuradas. O banco de dados não funcionará.</p>
-              </motion.div>
-            )}
-            {error && (
-              <motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-center gap-2 text-sm"
-              >
-                <AlertCircle size={18} />
-                {error}
-              </motion.div>
-            )}
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg flex items-center gap-2 text-sm"
+            >
+              <AlertCircle size={18} />
+              {error}
+            </motion.div>
+          )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">Tipo de Usuário</label>
-              <div className="grid grid-cols-1 gap-3">
-                {(['Administrador', 'Supervisor', 'Jovem aprendiz'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRole(r);
-                      setError('');
-                    }}
-                    className={`p-4 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
-                      role === r 
-                        ? 'border-[#046393] bg-blue-50 text-[#046393]' 
-                        : 'border-slate-100 hover:border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <span className="font-bold">{r}</span>
-                    {role === r && <div className="w-2 h-2 bg-[#046393] rounded-full" />}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {success && (
+            <motion.div 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="mb-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-lg flex items-center gap-2 text-sm"
+            >
+              <CheckCircle size={18} className="text-emerald-500" />
+              {success}
+            </motion.div>
+          )}
 
-            {role === 'Administrador' && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="space-y-2"
-              >
-                <label className="text-sm font-semibold text-slate-700 ml-1">Senha de Admin</label>
+          <form onSubmit={isRegistering ? handleRegisterRequest : handleLogin} className="space-y-4">
+            {isRegistering && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Nome Completo</label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                   <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#046393] focus:border-transparent transition-all"
-                    placeholder="Digite a senha"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none transition-all"
+                    placeholder="Seu nome"
                     required
                   />
                 </div>
-              </motion.div>
+              </div>
             )}
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Usuário</label>
+              <div className="relative">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none transition-all"
+                  placeholder="nome.usuario"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#046393] outline-none transition-all"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-[#046393] hover:bg-[#03527a] text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-70 mt-4"
+              className="w-full bg-[#046393] hover:bg-[#03527a] text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-70 mt-6"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
                   <LogIn size={20} />
-                  Acessar Sistema
+                  {isRegistering ? 'Solicitar Cadastro' : 'Acessar Sistema'}
                 </>
               )}
             </button>
           </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsRegistering(!isRegistering);
+                setError('');
+                setSuccess('');
+              }}
+              className="text-sm font-bold text-[#046393] hover:underline"
+            >
+              {isRegistering ? 'Já tenho conta? Fazer Login' : 'Não tem conta? Solicitar Cadastro'}
+            </button>
+          </div>
         </div>
         
         <div className="bg-slate-50 p-6 text-center border-t border-slate-100">

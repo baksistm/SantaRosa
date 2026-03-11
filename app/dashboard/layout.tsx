@@ -130,7 +130,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Logo Section */}
           <div className="p-4 flex items-center justify-between border-b border-slate-100">
             <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-10 h-10 relative flex-shrink-0">
+              <div className="w-14 h-14 relative flex-shrink-0">
                 <Image 
                   src="/assets/logo.png" 
                   alt="Logo" 

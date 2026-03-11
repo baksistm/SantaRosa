@@ -16,6 +16,76 @@ export const supabaseService = {
     }));
   },
 
+  async createProfile(profile: any) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert([{
+        id: crypto.randomUUID(),
+        name: profile.name,
+        username: profile.username,
+        password: profile.password,
+        function: profile.role || profile.function
+      }])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateProfile(id: string, updates: any) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        name: updates.name,
+        username: updates.username,
+        password: updates.password,
+        function: updates.role || updates.function
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteProfile(id: string) {
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
+  // Solicitações de Cadastro
+  async getRegistrationRequests() {
+    const { data, error } = await supabase
+      .from('registration_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createRegistrationRequest(request: any) {
+    const { data, error } = await supabase
+      .from('registration_requests')
+      .insert([request])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteRegistrationRequest(id: string) {
+    const { error } = await supabase
+      .from('registration_requests')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  },
+
   // Romaneios
   async getRomaneios() {
     const { data, error } = await supabase
@@ -116,20 +186,25 @@ export const supabaseService = {
   async getAtividades() {
     const { data, error } = await supabase
       .from('atividades')
-      .select('*')
+      .select(`
+        *,
+        assigned_user:profiles(id, name, username)
+      `)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     
     return (data || []).map((a: any) => ({
       ...a,
-      createdAt: a.created_at
+      createdAt: a.created_at,
+      assignedUser: a.assigned_user
     }));
   },
 
   async createAtividade(atividade: any) {
     try {
       const payload = {
+        id: crypto.randomUUID(),
         titulo: atividade.titulo ? String(atividade.titulo) : '',
         descricao: atividade.descricao ? String(atividade.descricao) : '',
         link: atividade.link ? String(atividade.link) : null,
@@ -160,7 +235,13 @@ export const supabaseService = {
     try {
       const { data, error } = await supabase
         .from('atividades')
-        .update(updates)
+        .update({
+          titulo: updates.titulo,
+          descricao: updates.descricao,
+          link: updates.link,
+          periodo: updates.periodo,
+          assigned_to: updates.assigned_to
+        })
         .eq('id', id)
         .select()
         .single();
