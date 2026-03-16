@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { supabaseService } from '@/lib/supabase-service';
@@ -18,7 +18,8 @@ import {
   AlertCircle,
   User as UserIcon,
   Printer,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,21 +38,24 @@ export default function AtividadesPage() {
     return hasUrl && hasKey;
   });
 
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [atividadesData, profilesData] = await Promise.all([
+        supabaseService.getAtividades(),
+        supabaseService.getProfiles()
+      ]);
+      setAtividades(atividadesData);
+      setUsers(profilesData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setAtividades, setUsers]);
+
   // Fetch activities on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [atividadesData, profilesData] = await Promise.all([
-          supabaseService.getAtividades(),
-          supabaseService.getProfiles()
-        ]);
-        setAtividades(atividadesData);
-        setUsers(profilesData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
     fetchData();
 
     // Subscribe to changes
@@ -65,7 +69,7 @@ export default function AtividadesPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setAtividades, setUsers]);
+  }, [fetchData, setAtividades]);
 
   // Filter Jovens for assignment
   const jovens = useMemo(() => {
@@ -250,6 +254,14 @@ export default function AtividadesPage() {
           <p className="text-slate-500">Gestão de tarefas e prazos para menores aprendizes.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={fetchData}
+            disabled={isLoading}
+            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50 shadow-sm"
+            title="Recarregar dados"
+          >
+            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
           <button 
             onClick={generatePDF}
             className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"

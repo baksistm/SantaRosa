@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { supabaseService } from '@/lib/supabase-service';
 import { motion, AnimatePresence } from 'motion/react';
@@ -38,7 +38,7 @@ export default function ConfiguracoesPage() {
     role: 'Jovem aprendiz' as UserRole
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [profilesData, requestsData] = await Promise.all([
         supabaseService.getProfiles(),
@@ -49,11 +49,11 @@ export default function ConfiguracoesPage() {
     } catch (err) {
       console.error('Error fetching settings data:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   if (currentUser?.role?.trim() !== 'Administrador') {
     return (

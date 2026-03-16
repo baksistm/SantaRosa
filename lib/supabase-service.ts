@@ -106,50 +106,51 @@ export const supabaseService = {
 
   async createRomaneio(romaneio: any) {
     try {
-      const payload = {
-        cliente: romaneio.cliente ? String(romaneio.cliente) : '',
+      const payload: any = {
+        cliente: String(romaneio.cliente || ''),
         cliente_filial: romaneio.cliente_filial ? String(romaneio.cliente_filial) : null,
-        nf: romaneio.nf ? String(romaneio.nf) : '',
+        nf: String(romaneio.nf || ''),
         entrada: Number(romaneio.entrada) || 0,
         saldo: Number(romaneio.saldo) || 0,
         numero_romaneio: romaneio.numero_romaneio ? String(romaneio.numero_romaneio) : null,
-        status: romaneio.status ? String(romaneio.status) : 'Pendente',
-        created_by: romaneio.created_by
+        status: String(romaneio.status || 'Pendente'),
+        created_by: (romaneio.created_by && romaneio.created_by !== '') ? romaneio.created_by : null
       };
 
       const { data, error } = await supabase
         .from('romaneios')
         .insert([payload])
-        .select()
-        .single();
+        .select();
       
-      if (error) {
-        console.error('Supabase insert error details:', error);
-        throw error;
-      }
-      return data;
+      if (error) throw error;
+      return data ? data[0] : null;
     } catch (error: any) {
-      console.error('Supabase createRomaneio caught error:', error);
+      console.error('Erro detalhado ao criar romaneio:', error);
       throw error;
     }
   },
 
   async updateRomaneio(id: string, updates: any) {
     try {
+      const payload: any = {};
+      if (updates.cliente !== undefined) payload.cliente = String(updates.cliente);
+      if (updates.cliente_filial !== undefined) payload.cliente_filial = updates.cliente_filial ? String(updates.cliente_filial) : null;
+      if (updates.nf !== undefined) payload.nf = String(updates.nf);
+      if (updates.entrada !== undefined) payload.entrada = Number(updates.entrada);
+      if (updates.saldo !== undefined) payload.saldo = Number(updates.saldo);
+      if (updates.numero_romaneio !== undefined) payload.numero_romaneio = updates.numero_romaneio ? String(updates.numero_romaneio) : null;
+      if (updates.status !== undefined) payload.status = String(updates.status);
+
       const { data, error } = await supabase
         .from('romaneios')
-        .update(updates)
+        .update(payload)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
       
-      if (error) {
-        console.error('Supabase update romaneio error details:', error);
-        throw error;
-      }
-      return data;
+      if (error) throw error;
+      return data ? data[0] : null;
     } catch (error: any) {
-      console.error('Supabase updateRomaneio caught error:', error);
+      console.error('Erro detalhado ao atualizar romaneio:', error);
       throw error;
     }
   },
@@ -188,71 +189,72 @@ export const supabaseService = {
       .from('atividades')
       .select(`
         *,
-        assigned_user:profiles(id, name, username)
+        assigned_user:profiles!assigned_to(id, name, username)
       `)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
     
-    return (data || []).map((a: any) => ({
-      ...a,
-      createdAt: a.created_at,
-      assignedUser: a.assigned_user
-    }));
+    return (data || []).map((a: any) => {
+      // Garantir que assignedUser seja um objeto único, não um array
+      let assignedUser = null;
+      if (a.assigned_user) {
+        assignedUser = Array.isArray(a.assigned_user) ? a.assigned_user[0] : a.assigned_user;
+      }
+
+      return {
+        ...a,
+        createdAt: a.created_at,
+        assignedUser: assignedUser
+      };
+    });
   },
 
   async createAtividade(atividade: any) {
     try {
-      const payload = {
-        id: crypto.randomUUID(),
-        titulo: atividade.titulo ? String(atividade.titulo) : '',
-        descricao: atividade.descricao ? String(atividade.descricao) : '',
+      const payload: any = {
+        titulo: String(atividade.titulo || ''),
+        descricao: String(atividade.descricao || ''),
         link: atividade.link ? String(atividade.link) : null,
-        periodo: atividade.periodo ? String(atividade.periodo) : 'Sem período',
+        periodo: String(atividade.periodo || 'Sem período'),
         concluida: Boolean(atividade.concluida),
-        assigned_to: atividade.assigned_to || null,
-        created_by: atividade.created_by
+        assigned_to: (atividade.assigned_to && atividade.assigned_to !== '') ? atividade.assigned_to : null,
+        created_by: (atividade.created_by && atividade.created_by !== '') ? atividade.created_by : null
       };
 
       const { data, error } = await supabase
         .from('atividades')
         .insert([payload])
-        .select()
-        .single();
+        .select();
       
-      if (error) {
-        console.error('Supabase insert atividade error details:', error);
-        throw error;
-      }
-      return data;
+      if (error) throw error;
+      return data ? data[0] : null;
     } catch (error: any) {
-      console.error('Supabase createAtividade caught error:', error);
+      console.error('Erro detalhado ao criar atividade:', error);
       throw error;
     }
   },
 
   async updateAtividade(id: string, updates: any) {
     try {
+      const payload: any = {
+        titulo: String(updates.titulo || ''),
+        descricao: String(updates.descricao || ''),
+        link: updates.link ? String(updates.link) : null,
+        periodo: String(updates.periodo || 'Sem período'),
+        assigned_to: (updates.assigned_to && updates.assigned_to !== '') ? updates.assigned_to : null
+      };
+
       const { data, error } = await supabase
         .from('atividades')
-        .update({
-          titulo: updates.titulo,
-          descricao: updates.descricao,
-          link: updates.link,
-          periodo: updates.periodo,
-          assigned_to: updates.assigned_to
-        })
+        .update(payload)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
       
-      if (error) {
-        console.error('Supabase update atividade error details:', error);
-        throw error;
-      }
-      return data;
+      if (error) throw error;
+      return data ? data[0] : null;
     } catch (error: any) {
-      console.error('Supabase updateAtividade caught error:', error);
+      console.error('Erro detalhado ao atualizar atividade:', error);
       throw error;
     }
   },

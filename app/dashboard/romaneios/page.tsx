@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { supabaseService } from '@/lib/supabase-service';
@@ -17,7 +17,8 @@ import {
   Download,
   AlertCircle,
   ChevronRight,
-  Filter
+  Filter,
+  RefreshCw
 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
@@ -49,21 +50,24 @@ export default function RomaneiosPage() {
     return hasUrl && hasKey;
   });
 
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [romaneiosData, profilesData] = await Promise.all([
+        supabaseService.getRomaneios(),
+        supabaseService.getProfiles()
+      ]);
+      setRomaneios(romaneiosData);
+      setUsers(profilesData);
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [setRomaneios, setUsers]);
+
   // Fetch romaneios on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [romaneiosData, profilesData] = await Promise.all([
-          supabaseService.getRomaneios(),
-          supabaseService.getProfiles()
-        ]);
-        setRomaneios(romaneiosData);
-        setUsers(profilesData);
-      } catch (error: any) {
-        console.error('Error fetching data:', error);
-      }
-    };
-
     fetchData();
 
     // Subscribe to changes
@@ -77,7 +81,7 @@ export default function RomaneiosPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setRomaneios, setUsers]);
+  }, [fetchData, setRomaneios]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -157,7 +161,7 @@ export default function RomaneiosPage() {
           nf: formData.nf,
           entrada: Number(formData.entrada),
           saldo: Number(formData.saldo),
-          numero_romaneio: formData.numeroRomaneio || undefined,
+          numero_romaneio: formData.numeroRomaneio || null,
           status,
           created_by: currentUser.id
         });
@@ -169,8 +173,7 @@ export default function RomaneiosPage() {
       setEditingId(null);
       
       // Manual fetch as a fallback for realtime
-      const data = await supabaseService.getRomaneios();
-      setRomaneios(data);
+      fetchData();
     } catch (error: any) {
       console.error('Full error object:', error);
       let errorMsg = 'Erro desconhecido';
@@ -314,6 +317,14 @@ export default function RomaneiosPage() {
           <p className="text-slate-500">Gerenciamento de entradas e conferências.</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={fetchData}
+            disabled={isLoading}
+            className="p-2 bg-white border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all disabled:opacity-50 shadow-sm"
+            title="Recarregar dados"
+          >
+            <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
           <button 
             onClick={() => setActiveTab('lista')}
             className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === 'lista' ? 'bg-[#046393] text-white shadow-lg shadow-blue-900/20' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}`}
